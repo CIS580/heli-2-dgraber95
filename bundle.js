@@ -4,6 +4,7 @@
 /* Classes */
 const Game = require('./game');
 const Vector = require('./vector');
+const BulletPool = require('./bullet_pool');
 
 /* Global variables */
 var canvas = document.getElementById('screen');
@@ -40,6 +41,7 @@ var reticule = {
   x: 0,
   y: 0
 }
+var bullets = new BulletPool(10);
 
 /**
  * @function onmousemove
@@ -60,6 +62,7 @@ window.onmousedown = function(event) {
   reticule.x = event.offsetX;
   reticule.y = event.offsetY;
   // TODO: Fire bullet in direction of the retciule
+  bullets.add(player.position, {x:1, y:0});
 }
 
 /**
@@ -185,6 +188,10 @@ function update(elapsedTime) {
 
   if(camera.x < 0) camera.x = 0;
 
+  // update bullets
+  bullets.update(elapsedTime, function(bullet){
+    return false;
+  });
 }
 
 /**
@@ -230,9 +237,66 @@ function render(elapsedTime, ctx) {
   ctx.strokeStyle = '#00ff00';
   ctx.stroke();
   ctx.restore();
+
+  // Render bullets
+  bullets.render(elapsedTime, ctx);
 }
 
-},{"./game":2,"./vector":3}],2:[function(require,module,exports){
+},{"./bullet_pool":2,"./game":3,"./vector":4}],2:[function(require,module,exports){
+module.exports = exports = BulletPool;
+
+function BulletPool(maxSize) {
+  this.pool = new Float32Array(4 * maxSize);
+  this.end = 0;
+  this.max = maxSize;
+}
+
+
+BulletPool.prototype.add = function(position, velocity){
+  if(this.end < this.max){
+    this.pool[4*this.end] = position.x;
+    this.pool[4*this.end + 1] = position.y;
+    this.pool[4*this.end + 2] = velocity.x; 
+    this.pool[4*this.end + 3] = velocity.y; 
+    this.end++;
+    }
+}
+
+
+BulletPool.prototype.update = function(elapsedTime, callback){
+    for(var i = 0; i < this.end; i++){
+        this.pool[4*i] += this.pool[4*i+2];
+        this.pool[4*i+1] += this.pool[4*i+3]        
+        if(callback({
+            x: this.pool[4*i],
+            y: this.pool[4*i+1]
+        })){
+            // Object dead
+            this.pool[4*i] = this.pool[4*(this.end-1)];
+            this.pool[4*i+1] = this.pool[4*(this.end-1)+1];
+            this.pool[4*i+2] = this.pool[4*(this.end-1)+2];
+            this.pool[4*i+3] = this.pool[4*(this.end-1)+3];
+            this.end--;
+            i--;
+        }
+    }
+}
+
+BulletPool.prototype.render = function(elapsedTime, ctx){
+    ctx.save();
+    ctx.beginPath();
+    ctx.fillStyle = "black";
+    for(var i = 0; i < this.end; i++){
+        ctx.moveTo(this.pool[4*i], this.pool[4*i+1]);
+        ctx.arc(this.pool[4*i], this.pool[4*i+1], 2, 0, 2*Math.PI);
+    }
+    ctx.fill();
+    ctx.restore();
+}
+
+
+
+},{}],3:[function(require,module,exports){
 "use strict";
 
 /**
@@ -290,7 +354,7 @@ Game.prototype.loop = function(newTime) {
   this.frontCtx.drawImage(this.backBuffer, 0, 0);
 }
 
-},{}],3:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 /**
  * @module Vector
  * A library of vector functions.
